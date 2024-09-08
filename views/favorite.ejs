@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Yu-Gi-Oh! Deck Builder</title>
+     <link rel="icon" href="/images/deck_favicon.png" type="image/png">
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<link rel="stylesheet" type="text/css" href="/styles/main.css">
+</head>
+<body>
+<div class="container col-xxl-8 px-4 py-5" id="icon-grid">
+ <h1> Favorites </h1>
+
+<div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-4 py-5">
+
+<script>
+const iconGrid= document.getElementById('icon-grid');
+const favoriteDeck = new Set(JSON.parse(localStorage.getItem('favorites') || '[]').map(card => JSON.parse(card)));
+const H2= document.createElement('h2');
+H2.innerHTML=`Count: ${favoriteDeck.size}`;
+const container= document.querySelector('.container');
+container.appendChild(H2);
+
+if (favoriteDeck.size>0 && ![...favoriteDeck].some(item =>Array.isArray(item) && item.length===0)) {
+
+
+
+    const row = document.createElement('div');
+    row.className = 'row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-4 py-5';
+
+
+    favoriteDeck.forEach(card => {
+
+    const cardContainer = document.createElement('div');
+    cardContainer.className='col';
+    cardContainer.innerHTML = `
+    <div class='card search-result' data-name="${card.name}"  data-desc="${card.desc.replace(/"/g, '&quot;')}"  data-atk="${card.atk}"  data-def="${card.def}" data-level="${card.level}" data-attribute="${card.attribute}" data-type="${card.type}" data-id="${card.id}">
+          <img src='${card.image}' alt= '${card.name}' >
+    </div>
+    `;
+    row.appendChild(cardContainer);
+
+    });
+    iconGrid.appendChild(row);
+    }
+
+
+
+    </script>
+
+
+</div>
+</div>
+<div class="overlay"></div>
+
+</script>
+
+<script>
+
+
+function removeFromFavorite(removedCard){
+
+favoriteDeck.forEach(card =>{
+if (card.id==removedCard.dataset.id){
+favoriteDeck.delete(card);
+console.log("deletion complete");
+}
+});
+// localStorage.setItem('favorites', JSON.stringify([...favoriteDeck].map(card => JSON.stringify(card))));
+
+const favoriteDeckArray = [...favoriteDeck];
+const favoriteDeckJSON = favoriteDeckArray.map(card => JSON.stringify(card));
+const favoriteDeckJSONString = JSON.stringify(favoriteDeckJSON);
+localStorage.setItem('favorites', favoriteDeckJSONString);
+
+
+}
+
+document.addEventListener('DOMContentLoaded', () =>{
+
+    const cards = document.querySelectorAll('.search-result');
+    const overlay = document.querySelector('.overlay');
+
+    cards.forEach( card =>{
+        card.addEventListener( 'click', () => {
+            overlay.style.opacity = '1';
+            overlay.style.visibility = 'visible';
+
+            const newCardContainer = document.createElement('div');
+            newCardContainer.className = "card mb-3 clicked-card";
+            newCardContainer.style.maxWidth = '540px';
+
+            const cardHTML=`
+            <div class="row g-0">
+                <div class="col-md-4">
+                  <img src="${card.querySelector('img').src}" class="img-fluid rounded-start" alt="${card.dataset.name}" >
+                </div>
+                <div class="col-md-8">
+                  <div class="card-body">
+                    <h5 class="card-title">${card.dataset.name}</h5>
+                    <p class="card-text"> ${card.dataset.desc} </p>
+                    ${ card.dataset.type ? `
+                    <p class="card-text"><small class="text-body-secondary" style= "font-weight: bold" >ATK: ${card.dataset.atk}   DEF: ${card.dataset.def} </small></p>
+                    <p class="card-text"><small class="text-body-secondary" style= "font-weight: bold" >Level: ${card.dataset.level}  </small></p>
+                    <p class="card-text"><small class="text-body-secondary" style= "font-weight: bold" >Attribute: ${card.dataset.attribute} </small></p>
+                    `: '' }
+                    <button type="button" class="btn btn-secondary remove-favorite" style= "border-radius:12%; background-color:#FD2D2D; z-index:1100; ">Remove from Favorites</button>
+                  </div>
+                </div>
+              </div>
+            `;
+            newCardContainer.innerHTML= cardHTML;
+
+
+            newCardContainer.querySelector('.remove-favorite').addEventListener('click', () => {
+
+            removeFromFavorite(card);
+
+            window.location.href='/favorites';
+
+        });
+        overlay.appendChild(newCardContainer);
+
+
+        });
+
+    });
+
+
+    overlay.addEventListener('click', () => {
+        overlay.style.opacity = '0';
+        overlay.style.visibility = 'hidden';
+        overlay.innerHTML = '';
+    });
+
+    });
+</script>
+
+
+
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>
