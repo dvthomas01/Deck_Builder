@@ -1,142 +1,114 @@
-import axios from "axios";
-import express from "express";
-import bodyParser from "body-parser";
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
-import { config } from 'dotenv';
-import session from 'express-session';
+import cookieParser from 'cookie-parser';
 
-// Initialize dotenv (locally, Vercel will handle this in production)
-config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const API_URL = "https://db.ygoprodeck.com/api/v7/cardinfo.php?";
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-
-// Session configuration
-app.use(session({
-    name: 'deckbuilder.sid',
-    secret: process.env.SESSION_SECRET || 'deck-builder-secret-key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { 
-        secure: false, // Set to true in production with HTTPS
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        httpOnly: true,
-        sameSite: 'lax'
-    }
-}));
 
 // Middleware
-app.use(bodyParser.json());
 app.use(express.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(cookieParser()); // Add cookie parser middleware
+
+// Set view engine
 app.set('view engine', 'ejs');
-app.use(express.static("public"));
+app.set('views', path.join(__dirname, 'views'));
 
-// Initialize user favorites in session if not exists
+// Cookie-based favorites storage (Vercel compatible)
 app.use((req, res, next) => {
-    if (!req.session.favorites) {
-        req.session.favorites = [];
+    // Parse favorites from cookies
+    const favoritesCookie = req.cookies?.favorites || '[]';
+    try {
+        req.favorites = JSON.parse(favoritesCookie);
+    } catch (error) {
+        req.favorites = [];
     }
-    
-    // Debug logging for session management
-    console.log(`[Session] User ${req.sessionID ? req.sessionID.substring(0, 8) : 'new'} - Favorites: ${req.session.favorites.length}`);
-    
     next();
-});
-
-// Helper Function for OpenAI
-async function classifyIntent(text) {
-    try {
-        const response = await axios.post(OPENAI_API_URL, {
-            model: 'gpt-4',
-            messages: [
-                { role: 'system', content: 'You are an AI assistant specialized in Yu-Gi-Oh! deck building.' },
-                { role: 'user', content: `Help with deck building: "${text}"` }
-            ],
-            max_tokens: 100,
-            temperature: 0.5
-        }, {
-            headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        return response.data.choices[0].message.content.trim();
-    } catch (error) {
-        console.error('Error calling OpenAI API:', error.response ? error.response.data : error.message);
-    }
-}
-
-// Define the /advisor endpoint
-app.post('/advisor', async (req, res) => {
-    const { question } = req.body;
-
-    if (!question) {
-        return res.status(400).json({ error: 'Question is required' });
-    }
-
-    try {
-        const response = await classifyIntent(question);
-        res.json({ answer: response });
-    } catch (error) {
-        res.status(500).json({ error: 'Internal server error' });
-    }
 });
 
 // Routes
 app.get("/", (req, res) => {
-    res.render("index.ejs");
+    res.render("index", { 
+        title: "Yu-Gi-Oh! Deck Builder"
+    });
 });
 
 app.get("/favorites", (req, res) => {
-    res.render("favorite.ejs");
+    res.render("favorite", { 
+        title: "My Favorites",
+        favorites: req.favorites || []
+    });
 });
 
 app.get("/advisor", (req, res) => {
-    res.render("advisor.ejs");
+    res.render("advisor", { 
+        title: "Deck Advisor"
+    });
 });
 
-// Card search POST request
 app.post("/post-cards", async (req, res) => {
-    const { cardName, fName, attribute, archetype, type, level, race } = req.body;
-    let URL = API_URL;
-
     try {
-        if (cardName) URL += `name=${cardName}&`;
-        if (fName) URL += `fname=${fName}&`;
-        if (attribute) URL += `attribute=${attribute}&`;
-        if (archetype) URL += `archetype=${archetype}&`;
-        if (type) URL += `type=${type}&`;
-        if (level) URL += `level=${level}&`;
-        if (race) URL += `race=${race}&`;
+        const { cardName, fName, attribute, archetype, type, level, race } = req.body;
+        let URL = "https://db.ygoprodeck.com/api/v7/cardinfo.php?";
+        
+        if (cardName) URL += `name=${encodeURIComponent(cardName)}&`;
+        if (fName) URL += `fname=${encodeURIComponent(fName)}&`;
+        if (attribute) URL += `attribute=${encodeURIComponent(attribute)}&`;
+        if (archetype) URL += `archetype=${encodeURIComponent(archetype)}&`;
+        if (type) URL += `type=${encodeURIComponent(type)}&`;
+        if (level) URL += `level=${encodeURIComponent(level)}&`;
+        if (race) URL += `race=${encodeURIComponent(race)}&`;
 
-        const result = await axios.get(URL);
-        res.render("search-post.ejs", { content: result.data });
+        const response = await fetch(URL);
+        const data = await response.json();
+
+        if (data.error) {
+            return res.render("search-post", { 
+                title: "No Cards Found",
+                content: { data: [] },
+                message: "No cards found. Try different search parameters."
+            });
+        }
+
+        res.render("search-post", { 
+            title: "Search Results",
+            content: data
+        });
     } catch (error) {
-        console.error('Error fetching cards:', error);
-        res.render("search-post.ejs");
+        console.error('Search error:', error);
+        res.render("search-post", { 
+            title: "Search Error",
+            content: { data: [] },
+            message: "Error occurred during search. Please try again."
+        });
     }
 });
 
-// API endpoints for favorites management
+// API endpoints for favorites (cookie-based)
 app.get("/api/favorites", (req, res) => {
-    console.log(`[GET] User ${req.sessionID ? req.sessionID.substring(0, 8) : 'new'} requesting favorites: ${req.session.favorites.length} cards`);
-    res.json({ favorites: req.session.favorites || [] });
+    res.json({ favorites: req.favorites || [] });
 });
 
 app.post("/api/favorites", (req, res) => {
     const { card } = req.body;
     if (card) {
-        // Check if card already exists in favorites
-        const exists = req.session.favorites.some(fav => fav.id === card.id);
+        const exists = req.favorites.some(fav => fav.id === card.id);
         if (!exists) {
-            req.session.favorites.push(card);
+            req.favorites.push(card);
+            // Set cookie with updated favorites
+            res.cookie('favorites', JSON.stringify(req.favorites), {
+                maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax'
+            });
         }
-        console.log(`[POST] User ${req.sessionID ? req.sessionID.substring(0, 8) : 'new'} added card: ${card.name} - Total: ${req.session.favorites.length}`);
-        res.json({ success: true, favorites: req.session.favorites });
+        res.json({ success: true, favorites: req.favorites });
     } else {
         res.status(400).json({ error: 'Card data is required' });
     }
@@ -144,25 +116,44 @@ app.post("/api/favorites", (req, res) => {
 
 app.delete("/api/favorites/:cardId", (req, res) => {
     const cardId = req.params.cardId;
-    const beforeCount = req.session.favorites.length;
-    req.session.favorites = req.session.favorites.filter(card => card.id !== cardId);
-    const afterCount = req.session.favorites.length;
-    console.log(`[DELETE] User ${req.sessionID ? req.sessionID.substring(0, 8) : 'new'} removed card ${cardId}: ${beforeCount} -> ${afterCount} cards`);
-    res.json({ success: true, favorites: req.session.favorites });
+    req.favorites = req.favorites.filter(card => card.id !== cardId);
+    
+    // Update cookie
+    res.cookie('favorites', JSON.stringify(req.favorites), {
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax'
+    });
+    
+    res.json({ success: true, favorites: req.favorites });
 });
 
-// Export the app for Vercel
-export default app;
-
-// Start server for local development only (not on Vercel)
-// Check if we're running in a Vercel environment
-const isVercel = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
-console.log(`[Environment] NODE_ENV: ${process.env.NODE_ENV}, VERCEL: ${process.env.VERCEL}, isVercel: ${isVercel}`);
-
-if (!isVercel) {
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-        console.log(`🚀 DeckBuilder server running on http://localhost:${PORT}`);
-        console.log(`📱 Yu-Gi-Oh! card search and deck building ready!`);
+// Health check route for Vercel
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'OK',
+        message: 'DeckBuilder is running on Vercel!',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        isVercel: process.env.VERCEL === '1'
     });
-}
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).render('index', { 
+        title: "Page Not Found"
+    });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    res.status(500).render('index', { 
+        title: "Error"
+    });
+});
+
+// Export for Vercel (no app.listen)
+export default app;
