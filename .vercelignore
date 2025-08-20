@@ -1,0 +1,17 @@
+# Don't ignore these important directories
+!views/
+!public/
+!index.js
+!package.json
+
+# Ignore development files
+node_modules/
+.env
+.env.local
+*.log
+.DS_Store
+.git/
+.gitignore
+README.md
+STARTUP_GUIDE.md
+MULTI_USER_IMPLEMENTATION.md 

@@ -154,9 +154,15 @@ app.delete("/api/favorites/:cardId", (req, res) => {
 // Export the app for Vercel
 export default app;
 
-// Start server for local development
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 DeckBuilder server running on http://localhost:${PORT}`);
-    console.log(`📱 Yu-Gi-Oh! card search and deck building ready!`);
-});
+// Start server for local development only (not on Vercel)
+// Check if we're running in a Vercel environment
+const isVercel = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+console.log(`[Environment] NODE_ENV: ${process.env.NODE_ENV}, VERCEL: ${process.env.VERCEL}, isVercel: ${isVercel}`);
+
+if (!isVercel) {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`🚀 DeckBuilder server running on http://localhost:${PORT}`);
+        console.log(`📱 Yu-Gi-Oh! card search and deck building ready!`);
+    });
+}
