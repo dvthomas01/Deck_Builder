@@ -38,31 +38,54 @@
 
 <script>
 
-const favoriteDeck = new Set(JSON.parse(localStorage.getItem('favorites') || '[]'));
-
-function addToFavorite(card){
-favoriteDeck.add(card);
-localStorage.setItem('favorites', JSON.stringify([...favoriteDeck]));
+// Server-side favorites management
+async function loadFavorites() {
+    try {
+        const response = await fetch('/api/favorites');
+        const data = await response.json();
+        return new Set(data.favorites.map(card => JSON.stringify(card)));
+    } catch (error) {
+        console.error('Error loading favorites:', error);
+        return new Set();
+    }
 }
 
-document.addEventListener('DOMContentLoaded', () =>{
+async function addToFavorite(card) {
+    try {
+        const response = await fetch('/api/favorites', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ card: card })
+        });
+        
+        if (response.ok) {
+            console.log('Card added to favorites successfully');
+        } else {
+            console.error('Failed to add card to favorites');
+        }
+    } catch (error) {
+        console.error('Error adding to favorites:', error);
+    }
+}
 
+document.addEventListener('DOMContentLoaded', async () => {
     const cards = document.querySelectorAll('.search-result');
     const overlay = document.querySelector('.overlay');
 
-    cards.forEach( card =>{
-        card.addEventListener( 'click', () => {
+    cards.forEach(card => {
+        card.addEventListener('click', async () => {
             overlay.style.opacity = '1';
             overlay.style.visibility = 'visible';
 
             const newCardContainer = document.createElement('div');
             newCardContainer.className = "card mb-3 clicked-card";
             newCardContainer.style.maxWidth = '540px';
-            desc_container=document.createElement('div');
+            desc_container = document.createElement('div');
 
-
-            const isMonster = card.dataset.type &&  card.dataset.type.includes("Monster");
-            const cardHTML=`
+            const isMonster = card.dataset.type && card.dataset.type.includes("Monster");
+            const cardHTML = `
             <div class="row g-0">
                 <div class="col-md-4">
                   <img src="${card.querySelector('img').src}" class="img-fluid rounded-start" alt="${card.querySelector('img').alt}" >
@@ -70,8 +93,6 @@ document.addEventListener('DOMContentLoaded', () =>{
                 <div class="col-md-8">
                   <div class="card-body">
                     <h5 class="card-title">${card.querySelector('img').alt}</h5>
-
-
                     <p class="card-text"> ${card.dataset.desc} </p>
                     ${ isMonster ? `
                     <p class="card-text"><small class="text-body-secondary" style= "font-weight: bold" >ATK: ${card.dataset.atk}   DEF: ${card.dataset.def} </small></p>
@@ -84,44 +105,33 @@ document.addEventListener('DOMContentLoaded', () =>{
               </div>
             `;
 
-            newCardContainer.innerHTML= cardHTML;
-            newCardContainer.querySelector('.add-favorite').addEventListener('click', () => {
+            newCardContainer.innerHTML = cardHTML;
+            newCardContainer.querySelector('.add-favorite').addEventListener('click', async () => {
+                const added_card = {
+                    name: card.querySelector('img').alt,
+                    desc: card.dataset.desc,
+                    image: card.querySelector('img').src,
+                    type: isMonster,
+                    atk: card.dataset.atk,
+                    def: card.dataset.def,
+                    level: card.dataset.level,
+                    attribute: card.dataset.attribute,
+                    id: card.dataset.id
+                };
 
+                await addToFavorite(added_card);
+            });
 
-
-            const added_card = {
-                name: card.querySelector('img').alt,
-                desc: card.dataset.desc,
-                image: card.querySelector('img').src,
-                type: isMonster,
-                atk: card.dataset.atk,
-                def: card.dataset.def,
-                level: card.dataset.level,
-                attribute: card.dataset.attribute,
-                id: card.dataset.id
-            };
-
-
-
-            addToFavorite(JSON.stringify(added_card));
-
+            overlay.appendChild(newCardContainer);
         });
-
-        overlay.appendChild(newCardContainer);
-
-
-        });
-
     });
-
 
     overlay.addEventListener('click', () => {
         overlay.style.opacity = '0';
         overlay.style.visibility = 'hidden';
         overlay.innerHTML = '';
     });
-
-    });
+});
 </script>
 <% }else{ %>
 

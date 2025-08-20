@@ -17,39 +17,68 @@
 <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-4 py-5">
 
 <script>
-const iconGrid= document.getElementById('icon-grid');
-const favoriteDeck = new Set(JSON.parse(localStorage.getItem('favorites') || '[]').map(card => JSON.parse(card)));
-const H2= document.createElement('h2');
-H2.innerHTML=`Count: ${favoriteDeck.size}`;
-const container= document.querySelector('.container');
-container.appendChild(H2);
+const iconGrid = document.getElementById('icon-grid');
 
-if (favoriteDeck.size>0 && ![...favoriteDeck].some(item =>Array.isArray(item) && item.length===0)) {
-
-
-
-    const row = document.createElement('div');
-    row.className = 'row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-4 py-5';
-
-
-    favoriteDeck.forEach(card => {
-
-    const cardContainer = document.createElement('div');
-    cardContainer.className='col';
-    cardContainer.innerHTML = `
-    <div class='card search-result' data-name="${card.name}"  data-desc="${card.desc.replace(/"/g, '&quot;')}"  data-atk="${card.atk}"  data-def="${card.def}" data-level="${card.level}" data-attribute="${card.attribute}" data-type="${card.type}" data-id="${card.id}">
-          <img src='${card.image}' alt= '${card.name}' >
-    </div>
-    `;
-    row.appendChild(cardContainer);
-
-    });
-    iconGrid.appendChild(row);
+// Load favorites from server
+async function loadFavorites() {
+    try {
+        const response = await fetch('/api/favorites');
+        const data = await response.json();
+        return data.favorites || [];
+    } catch (error) {
+        console.error('Error loading favorites:', error);
+        return [];
     }
+}
+
+// Remove card from favorites
+async function removeFromFavorite(cardId) {
+    try {
+        const response = await fetch(`/api/favorites/${cardId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            console.log('Card removed from favorites successfully');
+            // Reload the page to show updated favorites
+            window.location.href = '/favorites';
+        } else {
+            console.error('Failed to remove card from favorites');
+        }
+    } catch (error) {
+        console.error('Error removing from favorites:', error);
+    }
+}
+
+// Initialize favorites display
+async function initializeFavorites() {
+    const favoriteDeck = await loadFavorites();
+    
+    const H2 = document.createElement('h2');
+    H2.innerHTML = `Count: ${favoriteDeck.length}`;
+    const container = document.querySelector('.container');
+    container.appendChild(H2);
+
+    if (favoriteDeck.length > 0) {
+        const row = document.createElement('div');
+        row.className = 'row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-4 py-5';
+
+        favoriteDeck.forEach(card => {
+            const cardContainer = document.createElement('div');
+            cardContainer.className = 'col';
+            cardContainer.innerHTML = `
+            <div class='card search-result' data-name="${card.name}" data-desc="${card.desc.replace(/"/g, '&quot;')}" data-atk="${card.atk}" data-def="${card.def}" data-level="${card.level}" data-attribute="${card.attribute}" data-type="${card.type}" data-id="${card.id}">
+                  <img src='${card.image}' alt='${card.name}' >
+            </div>
+            `;
+            row.appendChild(cardContainer);
+        });
+        iconGrid.appendChild(row);
+    }
+}
 
 
-
-    </script>
+</script>
 
 
 </div>
@@ -61,31 +90,34 @@ if (favoriteDeck.size>0 && ![...favoriteDeck].some(item =>Array.isArray(item) &&
 <script>
 
 
-function removeFromFavorite(removedCard){
-
-favoriteDeck.forEach(card =>{
-if (card.id==removedCard.dataset.id){
-favoriteDeck.delete(card);
-console.log("deletion complete");
+// Remove card from favorites
+async function removeFromFavorite(cardId) {
+    try {
+        const response = await fetch(`/api/favorites/${cardId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            console.log('Card removed from favorites successfully');
+            // Reload the page to show updated favorites
+            window.location.href = '/favorites';
+        } else {
+            console.error('Failed to remove card from favorites');
+        }
+    } catch (error) {
+        console.error('Error removing from favorites:', error);
+    }
 }
-});
-// localStorage.setItem('favorites', JSON.stringify([...favoriteDeck].map(card => JSON.stringify(card))));
 
-const favoriteDeckArray = [...favoriteDeck];
-const favoriteDeckJSON = favoriteDeckArray.map(card => JSON.stringify(card));
-const favoriteDeckJSONString = JSON.stringify(favoriteDeckJSON);
-localStorage.setItem('favorites', favoriteDeckJSONString);
-
-
-}
-
-document.addEventListener('DOMContentLoaded', () =>{
-
+document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize favorites display
+    await initializeFavorites();
+    
     const cards = document.querySelectorAll('.search-result');
     const overlay = document.querySelector('.overlay');
 
-    cards.forEach( card =>{
-        card.addEventListener( 'click', () => {
+    cards.forEach(card => {
+        card.addEventListener('click', () => {
             overlay.style.opacity = '1';
             overlay.style.visibility = 'visible';
 
@@ -93,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () =>{
             newCardContainer.className = "card mb-3 clicked-card";
             newCardContainer.style.maxWidth = '540px';
 
-            const cardHTML=`
+            const cardHTML = `
             <div class="row g-0">
                 <div class="col-md-4">
                   <img src="${card.querySelector('img').src}" class="img-fluid rounded-start" alt="${card.dataset.name}" >
@@ -112,31 +144,22 @@ document.addEventListener('DOMContentLoaded', () =>{
                 </div>
               </div>
             `;
-            newCardContainer.innerHTML= cardHTML;
-
+            newCardContainer.innerHTML = cardHTML;
 
             newCardContainer.querySelector('.remove-favorite').addEventListener('click', () => {
-
-            removeFromFavorite(card);
-
-            window.location.href='/favorites';
-
+                removeFromFavorite(card.dataset.id);
+            });
+            
+            overlay.appendChild(newCardContainer);
         });
-        overlay.appendChild(newCardContainer);
-
-
-        });
-
     });
-
 
     overlay.addEventListener('click', () => {
         overlay.style.opacity = '0';
         overlay.style.visibility = 'hidden';
         overlay.innerHTML = '';
     });
-
-    });
+});
 </script>
 
 
